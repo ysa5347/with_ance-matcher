@@ -1,0 +1,80 @@
+{
+    "status": "submit",
+    "subTime": "20240206_112334_000001",
+    "group": {
+        "pk": 4,
+        "userCap": 3,
+        "userNum": 2,
+        "name": "",
+        "gender": true,
+        "user":[
+            {
+                "userID": "ysa5347",
+                "gender": true,
+                "hope": "~~~~~~~~~~~~~~~~~~~~~~~",
+                "feat": "~~~~~~~~~~~~~~~~~~~~~~~"
+            },
+            {
+                "userID": "admin",
+                "gender": true,
+                "hope": "~~~~~~~~~~~~~~~~~~~~~~~",
+                "feat": "~~~~~~~~~~~~~~~~~~~~~~~"
+                
+            }
+        ]
+    }
+},
+{
+    "status": "submit",
+    "subTime": "20240206_112334_000001",
+    "group": {
+        "pk": 5,
+        "userCap": 3,
+        "userNum": 1,
+        "name": "",
+        "gender": true,
+        "user":[
+            {
+                "userID": "ysa5347",
+                "gender": true,
+                "college":"",
+                "major": "",
+                "semaster": 3
+            }
+        ]
+    }
+},
+{
+    "status": "error",
+    "body": "error; ___"
+}
+{
+    "status": "withdrawal",
+    "group": {
+        "pk": 4,
+        "userCap": 3,
+        "userNum": 2,
+        "name": "",
+        "gender": true,
+        "user":[
+            {
+                "userID": "ysa5347",
+                "gender": true,
+                "college":"",
+                "major": "",
+                "semaster": 3
+            },
+            {
+                "userID": "admin",
+                "gender": true,
+                "college":"",
+                "major": "",
+                "semaster": 3
+            }
+        ]
+    }
+}
+{
+    "status": "feedback",
+    "transaction"
+}
