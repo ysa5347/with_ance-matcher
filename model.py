@@ -5,6 +5,15 @@ import datetime
 
 rd = redis.StrictRedis(host='localhost', port=9092)
 class groupModel:
+    """ matching instance;
+    first submit -> input(json body) -> parsing, redis set
+    after submit -> input(int pk) -> redis get json body, parsing
+
+    add; add(), addWait(), addHope(), addFeat()
+    read; getWait(), getHope(), getFeat(), getTransaction(), getKeys(), getPk()
+    update; updateHope(), updateFeat()
+    delete; del(), delWait(), delHope(), delFeat(), delTransaction()
+    """
     _pk = 0
     subTime = ""
     userCap = 0
@@ -39,7 +48,7 @@ class groupModel:
     def getPk(self):
         return self._pk
     
-    def 
+    # get transaction, or objects.get, objects.filter 고안 필요
 
 class userModel:
     userID = ""
@@ -72,8 +81,16 @@ class userModel:
         rd.get(self._keys["feat"])
         
     def updateHope(self):
-        rd.execute_command()
-        
+        try:
+            rd.execute_command('SET', self._keys["hope"], self.hope, 'XX')
+        except:
+            raise ValueError("hope vector not exist.")
+    
+    def updateFeat(self):
+        try:
+            rd.execute_command('SET', self._keys["feat"], self.hope, 'XX')
+        except:
+            raise ValueError("feat vector not exist.")
         
 
 class transaction:
