@@ -4,24 +4,20 @@ import threading
 from confluent_kafka import Consumer
 from confluent_kafka import KafkaError
 from confluent_kafka import KafkaException
+from queue import Queue
 import redis
 
-rd = redis.StrictRedis(host='localhost', port=6379, db=0)
+
 #We want to run thread in an infinite loop
 running = True
-conf = {'bootstrap.servers': "kafka:9092",
-        'auto.offset.reset': 'smallest',
-        'group.id': "with-ance_match"}
-topic = [
-    "with_ance-matchSubmit",
-    "with_ance-match"
-]
-class inputConsumer(threading.Thread):
-    def __init__(self):
+
+class InputConsumer(threading.Thread):
+    def __init__(self, topic, conf, queue):
         threading.Thread.__init__(self)
         # Create consumer
         self.consumer = Consumer(conf)
         self.topic = topic
+        self.queue = queue
    
     def run(self):
         print ('Inside MatchService :  Created Listener ')
@@ -49,7 +45,7 @@ class inputConsumer(threading.Thread):
                             controller = submitController(message)
                         case "withdrawal":
                             controller = withdrawalController(message)
-                    # controller.run
+                    self.queue.put(message)
 
         finally:
         # Close down consumer to commit final offsets.

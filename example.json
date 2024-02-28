@@ -1,5 +1,6 @@
 {
     "status": "submit",
+    "type": "user",
     "subTime": "20240206_112334_000001",
     "group": {
         "pk": 4,
@@ -26,6 +27,7 @@
 },
 {
     "status": "submit",
+    "type": "user",
     "subTime": "20240206_112334_000001",
     "group": {
         "pk": 5,
