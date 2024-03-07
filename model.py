@@ -29,9 +29,12 @@ class groupModel:
             self.pk = body
             self._keys["front"] = f"front:match:wait:{self.pk}"
             self.body = self.getWait()
-
-        if type(body) is "str":
+        elif type(body) is "str":
             self.body = json.loads(body)
+        elif type(body) is "list":
+            pass
+        else:
+            raise ValueError(f"not valid json body; the body type is {type(body)}")
 
         # <------ type(body) = list, type(self.body) = str --------->    
         self.Validation(body)
@@ -47,6 +50,7 @@ class groupModel:
         
         self._keys["front"] = f"front:match:wait:{self.pk}"
         self._keys["wait"] = f"match:wait:{self.type}:{self.userCap}:{self.gender}:{self.pk}"
+        self._keys["transaction"] = f"match:wait:transaction:group:{self.pk}"
 
         for userbody in groupBody["user"]:
             user = user(userbody)
@@ -91,6 +95,7 @@ class groupModel:
         l = []
         for user in self.users:
             l.append(user.getFeat())
+        return l
     
 
     # get transaction, or objects.get, objects.filter 고안 필요
@@ -152,6 +157,36 @@ class userModel:
         
 
 class transaction:
+    """ transaction; distinguished with UUID.
+    in redis, transaction score were store in ~:transaction:score to zset.
+    and the table about between transaction and group were store in ~:transaction:find:G{group} or ~:T{UUID} to set.
+    
+    if group want to withdraw waiting, groupModel search transaction:find:G{group} to find transaction UUID what participating and del it.
+    """
+    tList = ["user", "group"]
+    def __init__(self, point, type, *groups):
+        if type(point) is not "float":
+            raise ValueError(f"not valid parameter for transaction. the [point, {type(point)}] is not int.")
+        self.point = point
+        if type not in self.tList:
+            raise ValueError(f"not valid parameter for transaction. the [type, {type}, {type(type)}] is not invalid.")
+            self.type = type
+        for group in groups:
+            if type(group) is not "int":
+                raise ValueError(f"not valid parameter for transaction. the [group {group}, {type(group)}] is not int.")
+        self.groups = groups
 
-    def __init__(self):
-        pass
+        self._key = f"match:transaction:{self.type}:"
+        self._mapKey = ""
+        for group in self.groups:
+            self._mapKey = self._mapKey + str(group) + "-"
+        self._mapKey = self._mapKey[:-1]
+
+    def add(self):
+        rd.zadd(self._key, [self._mapKey, self.point])
+
+        
+
+        
+
+        

@@ -5,6 +5,8 @@ from confluent_kafka import Consumer
 from confluent_kafka import KafkaError
 from confluent_kafka import KafkaException
 from queue import Queue
+from ..config import ctlEnum
+from ..model import groupModel, userModel
 import redis
 
 
@@ -12,12 +14,12 @@ import redis
 running = True
 
 class InputConsumer(threading.Thread):
-    def __init__(self, topic, conf, queue):
+    def __init__(self, topic, conf, queueList):
         threading.Thread.__init__(self)
         # Create consumer
         self.consumer = Consumer(conf)
         self.topic = topic
-        self.queue = queue
+        self.queueList = queueList
    
     def run(self):
         print ('Inside MatchService :  Created Listener ')
@@ -42,21 +44,28 @@ class InputConsumer(threading.Thread):
                         case "error":
                             print(message["body"])
                         case "submit":
-                            controller = submitController(message)
+                            self.submit(msg)
                         case "withdrawal":
-                            controller = withdrawalController(message)
-                    self.queue.put(message)
+                            self.withdrawal(msg)
 
         finally:
         # Close down consumer to commit final offsets.
             self.consumer.close()
-
-class submitController:
     
-    def __init__(self, message):
-        self.body = message
+    def submit(self, message):
+        """submit methods;
+            add models, put create message to queue."""
+        msg = ["add", message["group"]["pk"]]
+        q = self.queueList[ctlEnum.getValue(message["type"], message["group"]["userCap"])]
+        q.put(msg)
 
-class withdrawalController:
+        model = groupModel(message)
 
-    def __init__(self, pk):
-        self.group = pk
+
+    def withdrawal(self, message):
+    
+        msg = ["pop", message["group"]["pk"]]
+        q = self.queueList[ctlEnum.getValue(message["type"], message["group"]["userCap"])]
+        q.put(msg)
+
+        model = groupModel(message)

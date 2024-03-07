@@ -52,6 +52,7 @@
 }
 {
     "status": "withdrawal",
+    "type": "group",
     "group": {
         "pk": 4,
         "userCap": 3,
