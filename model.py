@@ -2,6 +2,7 @@ import redis
 import json
 import numpy as np
 import datetime
+import uuid
 
 rd = redis.StrictRedis(host='localhost', port=9092)
 class groupModel:
@@ -12,23 +13,25 @@ class groupModel:
     add; add(), addWait(), addHope(), addFeat()
     read; getWait(), getHope(), getFeat(), getTransaction(), getKeys(), getPk()
     update; updateHope(), updateFeat()
-    delete; del(), delWait(), delHope(), delFeat(), delTransaction()
+    delete; delete(), delWait(), delHope(), delFeat(), delTransaction()
     """
-    _pk = 0
+    pk = 0
     type = ""
     subTime = ""
     body = ""
     userCap = 0
     userNum = 0
-    gender = True
+    gender = bool()
     _keys = {}
     users = []
+    transactions = []
 
     def __init__(self, body):
         if type(body) is 'int':
             self.pk = body
-            self._keys["front"] = f"front:match:wait:{self.pk}"
             self.body = self.getWait()
+            self._keys["front"] = f"front:match:wait:{self.pk}"
+            return
         elif type(body) is "str":
             self.body = json.loads(body)
         elif type(body) is "list":
@@ -38,10 +41,12 @@ class groupModel:
 
         # <------ type(body) = list, type(self.body) = str --------->    
         self.Validation(body)
-
-        self.subTime = body["subTime"]
-        self.type = body["type"]
-        groupBody = body["group"]
+        self.load()
+    
+    def load(self, mode = False):
+        self.subTime = self.body["subTime"]
+        self.type = self.body["type"]
+        groupBody = self.body["group"]
 
         self.pk = groupBody["pk"]
         self.userCap = groupBody["userCap"]
@@ -50,24 +55,59 @@ class groupModel:
         
         self._keys["front"] = f"front:match:wait:{self.pk}"
         self._keys["wait"] = f"match:wait:{self.type}:{self.userCap}:{self.gender}:{self.pk}"
-        self._keys["transaction"] = f"match:wait:transaction:group:{self.pk}"
+        self._keys["transaction"] = f"match:wait:{self.type}:transaction:"
 
         for userbody in groupBody["user"]:
-            user = user(userbody)
+            user = userModel(self.pk, userbody)
             self.users.append(user)
-    
+
+        if mode:
+            self.loadTransactions()
+
+    def loadTransactions(self, mode = False):
+        """
+        mode = True   --> type(self.transactions) = object<transaction>
+        mode = False  --> type(self.transactions) = str(hex)
+        """
+        self.transactions = rd.smembers(self._keys["transaction"] + "G" + self.pk)
+        if mode:
+            l = []
+            for member in self.transactions:
+                l.append(transaction(member))
+            self.transactions = l
+
     def Validation(self, body):
         pass
 
     def getPk(self):
-        return self._pk
+        return self.pk
     
+    def add(self):
+        self.addWait(), self.addHope(), self.addFeat()
+
     def addWait(self):
         dump = json.dumps(self.body)
-        rd.set(self._keys["front"], dump)
+        rd.set(self._keys["front"], self.pk)
         rd.set(self._keys["wait"], dump)
 
-    def getWait(self, mode=False):
+    def addHope(self):
+        for user in self.users:
+            user.addHope()
+
+    def addFeat(self):
+        for user in self.users:
+            user.addFeat()
+
+    def addTransaction(self, UUID):
+        key = []
+        key.append(self._keys["transaction"] + "G" + self.pk)
+        key.append(self._keys["transaction"] + "T" + UUID)
+        if rd.sismember(key[1], self.pk):
+            rd.sadd(key[0], UUID)
+        else:
+            raise ValueError(f"the group '{self.pk}' is not in transaction '{UUID}'.")
+
+    def getWait(self, mode=True):
         """ get json body from wait list.
         if mode = False -> get it from front waitlist
         if mode = True -> get it from backend waitlist.
@@ -76,14 +116,6 @@ class groupModel:
             return rd.get(self._keys["wait"])
         else:
             return rd.get(self._keys["front"])
-    
-    def addHope(self):
-        for user in self.users:
-            user.addHope()
-
-    def addFeat(self):
-        for user in self.users:
-            user.addFeat()
 
     def getHope(self):
         l = []
@@ -97,7 +129,21 @@ class groupModel:
             l.append(user.getFeat())
         return l
     
+    def delete(self):
+        self.delFeat()
+        self.delHope()
+        self.delWait()
 
+    def delFeat(self):
+        for user in self.users:
+            user.delFeat()
+
+    def delHope(self):
+        for user in self.users:
+            user.delHope()
+
+    def delWait(self):
+        rd.delete(self._keys["wait"])
     # get transaction, or objects.get, objects.filter 고안 필요
 
 class userModel:
@@ -117,6 +163,7 @@ class userModel:
         pass
 
     def __init__(self, pk, body):
+        # 만약, 처음 생성된 것이 아니라면 최초 생성 group인지 확인해야한다.
         self.group = pk
         self.body = body
         self.userID = body["userID"]
@@ -164,26 +211,83 @@ class transaction:
     if group want to withdraw waiting, groupModel search transaction:find:G{group} to find transaction UUID what participating and del it.
     """
     tList = ["user", "group"]
-    def __init__(self, point, type, *groups):
-        if type(point) is not "float":
-            raise ValueError(f"not valid parameter for transaction. the [point, {type(point)}] is not int.")
-        self.point = point
-        if type not in self.tList:
-            raise ValueError(f"not valid parameter for transaction. the [type, {type}, {type(type)}] is not invalid.")
-            self.type = type
-        for group in groups:
-            if type(group) is not "int":
-                raise ValueError(f"not valid parameter for transaction. the [group {group}, {type(group)}] is not int.")
-        self.groups = groups
+    groups = []
 
-        self._key = f"match:transaction:{self.type}:"
+    def __init__(self, UUID = None, type = None, point = None, groups = None):
+        """how to call "transaction"
+        1. uuid
+            input uuid, type.
+        2. create
+            input point, groups.
+        """
+        if not type:
+            raise ValueError("you must input 'type'")
+        elif type not in self.tList:
+            raise ValueError(f"not valid parameter for transaction. the [type, {type}, {type(type)}] is not valid.")
+        else:
+            self.type = type
+
+        if UUID:
+            self.uuid = uuid.UUID(UUID)
+            self.load()
+
+        elif point and groups:
+            if not (type(point) == "float"):
+                raise ValueError(f"not valid parameter for transaction. the [point, {type(point)}] is not int.")
+            self.point = point
+
+            if not (type(groups) == "list" or type(groups) == "set"):
+                raise ValueError(f"not valid parameter for transaction. the [groups, {groups}, {type(groups)}] is not list.")
+            for group in groups:
+                if type(group) is not "int":
+                    raise ValueError(f"not valid parameter for transaction. the [group {group}, {type(group)}] is not int.")
+                self.groups.append(groupModel(group))
+            self.create()
+        else:
+            raise ValueError(f"not valid parameter for transaction.")
+            
+        self._key = f"match:wait:{self.type}:transaction:"
         self._mapKey = ""
-        for group in self.groups:
-            self._mapKey = self._mapKey + str(group) + "-"
-        self._mapKey = self._mapKey[:-1]
+
+    def load(self, mode = False):
+        """
+        mode = True     --> type(self.groups) = Objects<groupModel>
+        mode = False    --> type(self.groups) = list(int)
+        """
+        self.score = rd.zscore(self._key + "score", self.uuid)
+        self.groups = rd.smembers(self._key+"T"+self.uuid.hex)
+        if mode:
+            l = []
+            for member in self.groups:
+                l.append(groupModel(member))
+            self.groups = l
+
+    def create(self):
+        self.uuid = uuid.uuid1()
+        self.add()
 
     def add(self):
-        rd.zadd(self._key, [self._mapKey, self.point])
+        rd.zadd(self._key + "score", [self.uuid, self.point])
+        for group in self.groups:
+            rd.sadd(self._key + "T" + self.uuid, group.getPk())
+            rd.sadd(self._key + "G" + group.getPk(), self.uuid)
+    
+    def isInGroup(self, num):
+        if type(self.groups) == "list":
+            if num in self.groups:
+                return True
+        else:
+            for group in self.groups:
+                if group.getPk() == num:
+                    return True
+        return False
+    
+    def getGroups(self):
+        if type(self.groups) == "list":
+            self.load(True)
+        return self.groups
+    
+
 
         
 

@@ -5,7 +5,7 @@ import threading
 import json
 import numpy as np
 import dotenv
-from config import ctlEnum
+from ..config import ctlEnum
 from ..model import groupModel, userModel, transaction
 from .IC import InputConsumer
 
@@ -75,15 +75,27 @@ class instance(threading.Thread):
     def run(self):
         pass
 
+    def qManage(self):
+        if not self.queue.empty():
+            msg = self.queue.get()
+            if msg[0] == "add":
+                self._keyAdd(msg[1])
+            elif msg[0] == "pop":
+                self._keyPop(msg[1])
+
     def _keyAdd(self, pk):
         key = self._pattern + str(pk)
         if not self._keys.count(key):
             self._keys.append(key)
         else:
-            raise ValueError(f"the group {pk} already exist.")
+            print(f"the group {pk} already exists.")
             
     def _keyPop(self, pk):
-        pass
+        key = self._pattern + str(pk)
+        if self._keys.count(key):
+            self._keys.pop(key)
+        else:
+            print(f"the group {pk} not exists.")
         
 class MonitorController:
     pass

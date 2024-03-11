@@ -60,6 +60,7 @@ class InputConsumer(threading.Thread):
         q.put(msg)
 
         model = groupModel(message)
+        model.add()
 
 
     def withdrawal(self, message):
@@ -69,3 +70,4 @@ class InputConsumer(threading.Thread):
         q.put(msg)
 
         model = groupModel(message)
+        model.delete()
