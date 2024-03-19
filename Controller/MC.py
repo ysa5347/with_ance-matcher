@@ -1,9 +1,10 @@
 import redis
 import os
-from queue import Queue
 import threading
 import json
 import numpy as np
+from collections import deque
+from enum import Enum
 import dotenv
 from ..config import ctlEnum
 from ..model import groupModel, userModel, transaction
@@ -96,7 +97,90 @@ class instance(threading.Thread):
             self._keys.pop(key)
         else:
             print(f"the group {pk} not exists.")
+
+class CommandType(Enum):
+    ADD = 1
+    WITHDRAWAL = 2
+    ERROR = 3
+
+class QueueManager:
+    queue_dict = {}
+    MAX_QUEUE_SIZE = 1000
+    
+    def __init__(self, sub: [str], pub: [str]):
+        if sub:
+            self.sub = list()
+            for topic in sub:
+                temp = QueueManager.queue_dict.get(topic)
+                if not temp:
+                    temp = self.create_queue(topic)
+                self.sub.append(QueueManager.queue_dict.get(topic))
+        if pub:
+            self.pub = list()        
+            for topic in pub:
+                temp = QueueManager.queue_dict.get(topic)
+                if not temp:
+                    temp = self.create_queue(topic)
+                self.pub.append(QueueManager.queue_dict.get(topic))
+        if sub is None and pub is None:
+            raise ValueError("There are no attributes for QueueManager.")
+                    
+    def create_queue(self, topic: str):
+        QueueManager.queue_dict[topic] = Channel(topic)
+        return QueueManager.queue_dict[topic]
+    
+    def publish(self, msg: list):
+        if not isinstance(msg, list) or len(msg) != 2:
+            raise ValueError("Message should be a list of size 2.")
         
+        command_type = msg[0]
+        if not isinstance(command_type, CommandType):
+            raise ValueError("Invalid command type.")
+        
+        group_pk = msg[1]
+        if not isinstance(group_pk, int):
+            raise ValueError("Group pk should be an integer.")
+        
+        for q in self.pub:
+            if len(q.queue) >= self.MAX_QUEUE_SIZE:
+                raise ValueError("Queue size exceeded maximum limit.")
+            q.queue.append(msg)
+            
+    def noti(self) -> list:
+        non_empty_topics = []
+        for topic, q in QueueManager.queue_dict.items():
+            if q.queue:
+                non_empty_topics.append(topic)
+        return non_empty_topics
+    
+    def pop(self, topic: str) -> list:
+        q = QueueManager.queue_dict.get(topic)
+        if q and topic in self.sub:
+            if q.queue:
+                return q.queue.popleft()
+            else:
+                raise ValueError("Specified topic queue is empty.")
+        else:
+            raise ValueError("Specified topic is not subscribed.")
+    
+    def listen(self, topic: str) -> list:
+        q = QueueManager.queue_dict.get(topic)
+        if q and topic in self.sub:
+            if q.queue:
+                return q.queue[0]
+            else:
+                raise ValueError("Specified topic queue is empty.")
+        else:
+            raise ValueError("Specified topic is not subscribed.")
+
+class Channel:
+    def __init__(self, topic: str):
+        self.topic = topic
+        self.queue = deque()
+        
+    def __str__(self):
+        return self.topic
+
 class MonitorController:
     pass
 
